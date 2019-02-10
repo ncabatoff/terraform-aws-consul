@@ -9,6 +9,7 @@ set -e
 
 readonly DEFAULT_INSTALL_PATH="/opt/consul"
 readonly DEFAULT_CONSUL_USER="consul"
+readonly DEFAULT_ARCH="linux_amd64"
 readonly DOWNLOAD_PACKAGE_PATH="/tmp/consul.zip"
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,6 +35,7 @@ function print_usage {
   echo -e "  --ca-file-path\t\tPath to a PEM-encoded certificate authority used to encrypt and verify authenticity of client and server connections. Will be installed under <install-path>/tls/ca."
   echo -e "  --cert-file-path\t\tPath to a PEM-encoded certificate, which will be provided to clients or servers to verify the agent's authenticity. Will be installed under <install-path>/tls. Must be provided along with --key-file-path."
   echo -e "  --key-file-path\t\tPath to a PEM-encoded private key, used with the certificate to verify the agent's authenticity. Will be installed under <install-path>/tls. Must be provided along with --cert-file-path"
+  echo -e "  --arch\t\tThe user who will own the Consul install directories. Optional. Default: $DEFAULT_ARCH."
   echo
   echo "Example:"
   echo
@@ -224,9 +226,10 @@ function create_consul_install_paths {
 function fetch_binary {
   local -r version="$1"
   local download_url="$2"
+  local arch="$3"
 
   if [[ -z "$download_url" && -n "$version" ]];  then
-    download_url="https://releases.hashicorp.com/consul/${version}/consul_${version}_linux_amd64.zip"
+    download_url="https://releases.hashicorp.com/consul/${version}/consul_${version}_${arch}.zip"
   fi
 
   retry \
@@ -289,6 +292,7 @@ function install {
   local download_url=""
   local path="$DEFAULT_INSTALL_PATH"
   local user="$DEFAULT_CONSUL_USER"
+  local arch="$DEFAULT_ARCH"
   local ca_file_path=""
   local cert_file_path=""
   local key_file_path=""
@@ -328,6 +332,10 @@ function install {
         key_file_path="$2"
         shift
         ;;
+      --arch)
+        arch="$2"
+        shift
+        ;;
       --help)
         print_usage
         exit
@@ -345,6 +353,7 @@ function install {
   assert_either_or "--version" "$version" "--download-url" "$download_url"
   assert_not_empty "--path" "$path"
   assert_not_empty "--user" "$user"
+  assert_not_empty "--arch" "$arch"
 
   log_info "Starting Consul install"
 
@@ -352,7 +361,7 @@ function install {
   create_consul_user "$user"
   create_consul_install_paths "$path" "$user"
 
-  fetch_binary "$version" "$download_url"
+  fetch_binary "$version" "$download_url" "$arch"
   install_binary "$path" "$user"
 
   if [[ -n "$ca_file_path" || -n "$cert_file_path" || -n "$key_file_path" ]]; then
